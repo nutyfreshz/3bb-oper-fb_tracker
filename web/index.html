@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Query Facebook group posts and keep track of fixes.">
+  <meta name="theme-color" content="#14243d">
+  <title>Facebook Group Operation Tracker</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" type="module"></script>
+</head>
+<body>
+  <aside class="sidebar" aria-label="Workspace navigation">
+    <div class="brand"><span class="brand-icon" data-icon="layers"></span><div><strong>Group Ops</strong><small>Operations tracker</small></div></div>
+    <div class="nav-label">WORKSPACE</div>
+    <nav>
+      <a href="#workflow" class="active"><span data-icon="grid"></span> Tracker</a>
+      <a href="#results"><span data-icon="list"></span> Query results</a>
+    </nav>
+    <div class="sidebar-footer"><span class="sandbox-icon" data-icon="flask"></span><div><strong>Private workspace</strong></div></div>
+  </aside>
+  <main class="main">
+    <header class="topbar"><div class="breadcrumb"><span data-icon="grid"></span> Workspace <span class="chev">/</span> <strong>Tracker</strong></div><div class="filters source-toggle" role="group" aria-label="แหล่งข้อมูล"><button type="button" data-source="real" aria-pressed="true">โพสต์จริง</button><button type="button" data-source="demo" aria-pressed="false">Demo</button></div></header>
+    <div class="content">
+      <header class="intro">
+        <div class="intro-icon" data-icon="layers"></div>
+        <h1>Facebook Group<br class="mobile-break"> Operation Tracker</h1>
+        <p>ดึงโพสต์จากกลุ่ม Facebook ย้อนหลัง 7 วัน และติดตามสถานะการแก้ไข</p>
+      </header>
+      <div id="workflow">
+      <section class="panel workflow" id="real-workflow" aria-labelledby="add-title">
+        <div class="panel-heading real-heading">
+          <div><h2 id="add-title">Query โพสต์จริง</h2><p>กลุ่มผู้ใช้งาน 3BB broadband internet - AIS Fibre · Group ID 180446535798602</p></div>
+          <a class="button secondary" href="https://www.facebook.com/groups/180446535798602?locale=th_TH" target="_blank" rel="noopener noreferrer"><span data-icon="link"></span> เปิดกลุ่ม Facebook</a>
+        </div>
+        <form id="live-query" class="add-post" method="post">
+          <label id="key-field">SocialAPIs API key <input id="social-key" type="password" maxlength="500" autocomplete="off" spellcheck="false" placeholder="วาง API key สำหรับการทดสอบ"></label>
+          <p id="query-feedback" class="query-feedback" role="status" aria-live="polite" hidden></p>
+          <div class="post-actions">
+            <p id="query-hint">คีย์ใช้ในแท็บนี้เท่านั้น · ทดสอบหนึ่งหน้าก่อน Query 7 วัน</p>
+            <div class="post-query-buttons">
+              <button type="submit" class="button secondary" id="live-sample-button">ทดสอบ 3 โพสต์</button>
+              <button type="submit" class="button primary" id="live-query-button" disabled><span data-icon="search"></span> Query 7 วัน</button>
+            </div>
+          </div>
+        </form>
+      </section>
+      <section class="panel workflow" id="demo-workflow" aria-labelledby="workflow-title" hidden>
+        <div class="panel-heading"><div><h2 id="workflow-title">Query setup</h2><p>เชื่อมต่อบัญชีจำลอง แล้วเลือกกลุ่มที่ต้องการติดตาม</p></div></div>
+        <div id="stepper" class="stepper" aria-label="Query setup steps"></div>
+        <div id="setup"></div>
+      </section>
+      </div>
+      <section class="results-section" id="results" aria-labelledby="results-title">
+        <div class="section-heading">
+          <div><h2 id="results-title">Query results</h2><p id="query-caption">โพสต์จากการ Query ล่าสุด</p></div>
+          <div class="results-actions">
+            <label class="range" id="real-range">ช่วงวันที่ <select id="real-lookback"><option value="7">7 วันล่าสุด</option><option value="14">14 วันล่าสุด</option><option value="30">30 วันล่าสุด</option><option value="all">ทุกวันที่</option></select></label>
+            <button type="button" class="button secondary" id="posts-refresh-button">รีเฟรชข้อมูลทีม</button>
+            <button type="button" class="button secondary" id="posts-export-button" title="ดาวน์โหลดโพสต์จริงทั้งหมดจาก Query ล่าสุด" disabled>ดาวน์โหลดผล Query</button>
+          </div>
+        </div>
+        <div id="shared-log" class="shared-log">
+          <p id="shared-feedback" class="query-feedback" role="status" aria-live="polite" hidden></p>
+          <button type="button" class="button secondary" id="posts-retry-button" hidden>บันทึกผลเดิมเข้าข้อมูลทีม</button>
+        </div>
+        <div class="stats" aria-label="Query summary">
+          <div class="metric"><span class="metric-icon blue" data-icon="list"></span><div><span>โพสต์ทั้งหมด</span><strong id="stat-total">—</strong></div></div>
+          <div class="metric"><span class="metric-icon amber" data-icon="clock"></span><div><span>Pending</span><strong id="stat-pending">—</strong></div></div>
+          <div class="metric"><span class="metric-icon green" data-icon="check"></span><div><span>Fixed</span><strong id="stat-fixed">—</strong></div></div>
+          <div class="metric" id="duplicate-metric"><span class="metric-icon purple" data-icon="copy"></span><div><span>โพสต์ซ้ำที่ตัดออก</span><strong id="stat-duplicates">—</strong></div></div>
+        </div>
+        <div class="panel table-panel">
+          <div class="table-heading"><div class="filters" role="group" aria-label="Filter by fix status"><button type="button" data-filter="all" aria-pressed="true">ทั้งหมด</button><button type="button" data-filter="pending" aria-pressed="false">Pending</button><button type="button" data-filter="fixed" aria-pressed="false">Fixed</button></div><span id="row-count"></span></div>
+          <div id="table-content"></div>
+          <button type="button" class="button secondary load-more" id="posts-more-button" hidden>โหลดโพสต์เพิ่ม</button>
+        </div>
+      </section>
+    </div>
+  </main>
+  <div id="notice" role="status" class="notice" hidden></div>
+</body>
+</html>

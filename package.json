@@ -1,0 +1,15 @@
+{
+  "name": "facebook-group-operation-tracker",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "start": "node databricks/server.mjs",
+    "dev": "node scripts/preview.mjs",
+    "prepare:migration": "node scripts/prepare-migration.mjs"
+  },
+  "dependencies": {
+    "pg": "^8.16.3"
+  }
+}
