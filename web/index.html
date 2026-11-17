@@ -34,13 +34,13 @@
           <a class="button secondary" href="https://www.facebook.com/groups/180446535798602?locale=th_TH" target="_blank" rel="noopener noreferrer"><span data-icon="link"></span> เปิดกลุ่ม Facebook</a>
         </div>
         <form id="live-query" class="add-post" method="post">
-          <label id="key-field">SocialAPIs API key <input id="social-key" type="password" maxlength="500" autocomplete="off" spellcheck="false" placeholder="วาง API key สำหรับการทดสอบ"></label>
+          <label>SocialAPIs API key <input id="social-key" type="password" maxlength="500" autocomplete="off" spellcheck="false" placeholder="วาง API key"></label>
           <p id="query-feedback" class="query-feedback" role="status" aria-live="polite" hidden></p>
           <div class="post-actions">
-            <p id="query-hint">คีย์ใช้ในแท็บนี้เท่านั้น · ทดสอบหนึ่งหน้าก่อน Query 7 วัน</p>
+            <p>คีย์ใช้ได้ในแท็บนี้จนกว่าจะรีเฟรชหรือปิดแท็บ</p>
             <div class="post-query-buttons">
               <button type="submit" class="button secondary" id="live-sample-button">ทดสอบ 3 โพสต์</button>
-              <button type="submit" class="button primary" id="live-query-button" disabled><span data-icon="search"></span> Query 7 วัน</button>
+              <button type="submit" class="button primary" id="live-query-button"><span data-icon="search"></span> Query 7 วัน</button>
             </div>
           </div>
         </form>
@@ -56,13 +56,8 @@
           <div><h2 id="results-title">Query results</h2><p id="query-caption">โพสต์จากการ Query ล่าสุด</p></div>
           <div class="results-actions">
             <label class="range" id="real-range">ช่วงวันที่ <select id="real-lookback"><option value="7">7 วันล่าสุด</option><option value="14">14 วันล่าสุด</option><option value="30">30 วันล่าสุด</option><option value="all">ทุกวันที่</option></select></label>
-            <button type="button" class="button secondary" id="posts-refresh-button">รีเฟรชข้อมูลทีม</button>
             <button type="button" class="button secondary" id="posts-export-button" title="ดาวน์โหลดโพสต์จริงทั้งหมดจาก Query ล่าสุด" disabled>ดาวน์โหลดผล Query</button>
           </div>
-        </div>
-        <div id="shared-log" class="shared-log">
-          <p id="shared-feedback" class="query-feedback" role="status" aria-live="polite" hidden></p>
-          <button type="button" class="button secondary" id="posts-retry-button" hidden>บันทึกผลเดิมเข้าข้อมูลทีม</button>
         </div>
         <div class="stats" aria-label="Query summary">
           <div class="metric"><span class="metric-icon blue" data-icon="list"></span><div><span>โพสต์ทั้งหมด</span><strong id="stat-total">—</strong></div></div>
@@ -73,7 +68,6 @@
         <div class="panel table-panel">
           <div class="table-heading"><div class="filters" role="group" aria-label="Filter by fix status"><button type="button" data-filter="all" aria-pressed="true">ทั้งหมด</button><button type="button" data-filter="pending" aria-pressed="false">Pending</button><button type="button" data-filter="fixed" aria-pressed="false">Fixed</button></div><span id="row-count"></span></div>
           <div id="table-content"></div>
-          <button type="button" class="button secondary load-more" id="posts-more-button" hidden>โหลดโพสต์เพิ่ม</button>
         </div>
       </section>
     </div>

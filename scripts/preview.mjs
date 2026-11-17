@@ -1,7 +1,5 @@
 import { createServer } from "node:http";
-import { DatabaseSync } from "node:sqlite";
 import { parseArgs } from "node:util";
-import { readFile } from "node:fs/promises";
 import "./build.mjs";
 
 const { default: worker } = await import("../dist/server/index.js");
@@ -9,32 +7,6 @@ const { default: worker } = await import("../dist/server/index.js");
 const { values } = parseArgs({ options: { host: { type: "string" }, port: { type: "string" }, strictPort: { type: "boolean" } } });
 const base = "https://www.facebook.com/groups/180446535798602/permalink/";
 const fixtureTime = Date.now();
-const sqlite = new DatabaseSync(":memory:");
-sqlite.exec(await readFile(new URL("../drizzle/0000_shared_posts.sql", import.meta.url), "utf8"));
-const db = {
-  prepare(sql) {
-    const stmt = sqlite.prepare(sql);
-    return {
-      bind(...values) {
-        return {
-          all: () => ({ results: stmt.all(...values) }),
-          run: () => ({ meta: { changes: stmt.run(...values).changes } }),
-        };
-      },
-    };
-  },
-  batch(statements) {
-    sqlite.exec("BEGIN");
-    try {
-      const results = statements.map((statement) => statement.run());
-      sqlite.exec("COMMIT");
-      return results;
-    } catch (error) {
-      sqlite.exec("ROLLBACK");
-      throw error;
-    }
-  },
-};
 function sample(id, time) {
   return {
     details: { post_id: id, post_link: base + id + "/" },
@@ -86,7 +58,7 @@ createServer(async (req, res) => {
     const request = new Request("http://" + req.headers.host + req.url, {
       method: req.method, headers, ...(chunks.length ? { body: Buffer.concat(chunks) } : {}),
     });
-    const response = await worker.fetch(request, { DB: db });
+    const response = await worker.fetch(request);
     res.writeHead(response.status, Object.fromEntries(response.headers));
     res.end(Buffer.from(await response.arrayBuffer()));
   } catch {

@@ -12,5 +12,5 @@ await mkdir("dist/server", { recursive: true });
 await writeFile(
   "dist/server/index.js",
   "const siteAssets = " + JSON.stringify(assets) + ";\n" +
-    await read("../worker/index.js") + "\n" + await read("../worker/posts.js"),
+    await read("../worker/index.js"),
 );

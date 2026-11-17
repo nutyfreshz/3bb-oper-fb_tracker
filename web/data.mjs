@@ -47,12 +47,6 @@ export function runQuery(feed, groupIds, days, now) {
   return { keys: [...unique.values()].sort((left, right) => right.created_at - left.created_at).map(postKey), duplicates };
 }
 
-const bangkokOffset = 7 * 60 * 60 * 1000;
-
-export function bangkokDate(now = Date.now()) {
-  return new Date(now + bangkokOffset).toISOString().slice(0, 10);
-}
-
 export function parsePostLink(value) {
   let url;
   try {
@@ -67,16 +61,8 @@ export function parsePostLink(value) {
   return { group_id, post_id, url: `https://www.facebook.com/groups/${group_id}/posts/${post_id}/` };
 }
 
-export function realPostDate(value, now = Date.now()) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
-  const posted = Date.parse(value + "T00:00:00+07:00");
-  if (!Number.isFinite(posted) || bangkokDate(posted) !== value || value > bangkokDate(now)) return null;
-  return posted;
-}
-
 export function realPostsInRange(posts, days, now = Date.now()) {
-  const today = realPostDate(bangkokDate(now), now);
-  const firstDay = days === "all" ? -Infinity : today - (Number(days) - 1) * day;
+  const firstDay = days === "all" ? -Infinity : now - Number(days) * day;
   return posts.filter((post) => post.created_at >= firstDay).sort((left, right) => right.created_at - left.created_at);
 }
 

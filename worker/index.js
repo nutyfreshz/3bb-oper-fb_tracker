@@ -47,7 +47,7 @@ export function normalizePosts(rows, from, to) {
   return { posts, rejected, reachedCutoff: older > 0 && older === rows.length };
 }
 
-async function query(request, env) {
+async function query(request) {
   const origin = new URL(request.url).origin;
   if (request.headers.get("Origin") !== origin) return failure("คำขอนี้ต้องมาจากหน้า Tracker", 403);
   if (!request.headers.get("Content-Type")?.startsWith("application/json")) return failure("รูปแบบคำขอไม่ถูกต้อง", 415);
@@ -67,8 +67,8 @@ async function query(request, env) {
     return failure("ข้อมูลสำหรับ Query ไม่ถูกต้อง ลองเริ่ม Query ใหม่", 400);
   }
 
-  const key = env.SOCIALAPIS_API_KEY || (typeof body.key === "string" ? body.key.trim() : "");
-  if (!key) return failure("ระบุ SocialAPIs API key เพื่อเริ่มทดสอบ", 400);
+  const key = typeof body.key === "string" ? body.key.trim() : "";
+  if (!key) return failure("ระบุ SocialAPIs API key เพื่อเริ่ม Query", 400);
   if (key.length > 500 || /[^\x21-\x7e]/.test(key)) return failure("รูปแบบ API key ไม่ถูกต้อง", 400);
 
   const from = until - 7 * dayMs;
@@ -309,13 +309,11 @@ function upstreamStatusFailure(status, startedAt) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request) {
     const path = new URL(request.url).pathname;
-    if (path === "/api/posts") return sharedPostsApi(request, env);
     if (path.startsWith("/api/facebook/")) {
       if (!request.headers.get("oai-authenticated-user-id")) return failure("กรุณาเข้าสู่ระบบ Tracker", 401);
-      if (path === "/api/facebook/status" && request.method === "GET") return json({ configured: Boolean(env.SOCIALAPIS_API_KEY) });
-      if (path === "/api/facebook/query" && request.method === "POST") return query(request, env);
+      if (path === "/api/facebook/query" && request.method === "POST") return query(request);
       if (path === "/api/facebook/transport-check" && request.method === "GET") return probeMcpTransport();
       return failure("ไม่พบเส้นทางที่ร้องขอ", 404);
     }

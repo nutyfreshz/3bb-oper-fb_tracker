@@ -131,8 +131,6 @@ td time { white-space: nowrap; color: #405573; }
 .empty { border-top: 1px solid var(--line); display: grid; justify-items: center; text-align: center; gap: 6px; padding: 25px 16px 28px; }
 .empty .metric-icon { margin-bottom: 2px; }
 .empty p { font-size: 12px; }
-.shared-log:not([hidden]):has(> :not([hidden])) { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; margin-bottom: 12px; }
-.load-more { margin: 10px 14px; }
 .notice { position: fixed; z-index: 5; bottom: 20px; right: 20px; max-width: calc(100vw - 40px); padding: 11px 16px; background: #182e4e; color: #fff; border-radius: 9px; box-shadow: 0 6px 22px #0d1d3d30; font-size: 13px; }
 @media (max-width: 1050px) {
   .sidebar { width: 180px; }

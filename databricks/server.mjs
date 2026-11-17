@@ -1,6 +1,5 @@
 import { createServer } from "node:http";
 import worker from "../dist/server/index.js";
-import { createPool, createPostStorage, initializeDatabase } from "./database.mjs";
 
 const env = process.env;
 const local = process.argv.includes("--local");
@@ -8,11 +7,6 @@ const port = Number(env.DATABRICKS_APP_PORT ?? (local ? 8000 : NaN));
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("Invalid DATABRICKS_APP_PORT.");
 const origin = local ? `http://127.0.0.1:${port}` : new URL(env.DATABRICKS_APP_URL).origin;
 if (!local && !origin.startsWith("https://")) throw new Error("DATABRICKS_APP_URL must use HTTPS.");
-
-const pool = createPool();
-pool.on("error", (error) => console.error("Lakebase idle connection error", error.code ?? error.name));
-await initializeDatabase(pool);
-const bindings = { DB: createPostStorage(pool), SOCIALAPIS_API_KEY: env.SOCIALAPIS_API_KEY };
 
 const server = createServer(async (req, res) => {
   try {
@@ -31,7 +25,7 @@ const server = createServer(async (req, res) => {
       let size = 0;
       for await (const chunk of req.iterator({ destroyOnReturn: false })) {
         size += chunk.length;
-        if (size > 1_250_000) {
+        if (size > 8_000) {
           res.writeHead(413, { Connection: "close" }).end();
           return;
         }
@@ -40,7 +34,7 @@ const server = createServer(async (req, res) => {
       body = Buffer.concat(chunks);
     }
     const request = new Request(origin + req.url, { method: req.method, headers, body });
-    const response = await worker.fetch(request, bindings);
+    const response = await worker.fetch(request);
     res.writeHead(response.status, Object.fromEntries(response.headers));
     res.end(Buffer.from(await response.arrayBuffer()));
   } catch (error) {
@@ -50,4 +44,4 @@ const server = createServer(async (req, res) => {
   }
 });
 server.listen(port, local ? "127.0.0.1" : "0.0.0.0");
-for (const signal of ["SIGTERM", "SIGINT"]) process.once(signal, () => server.close(() => pool.end()));
+for (const signal of ["SIGTERM", "SIGINT"]) process.once(signal, () => server.close());

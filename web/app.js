@@ -1,5 +1,5 @@
 import {
-  groups, latestLiveRows, makeFeed, parsePostLink, postKey,
+  groups, latestLiveRows, makeFeed, parsePostLink, postKey, realPostsInRange,
   runQuery, saveRealPost,
 } from "./data.mjs";
 
@@ -30,12 +30,10 @@ function hydrate() {
   const initial = {
     connected: false, selected: [], days: 7, result: null, statuses: {},
     anchor: Date.now(),
-    real: {}, lastLiveQuery: null, legacyQuery: null, pendingQuery: null, mcpVerified: false,
+    real: {}, lastLiveQuery: null,
   };
   try {
-    const { lastSheetQuery, lastSheetSync, ...saved } = JSON.parse(localStorage.getItem(storageKey)) ?? {};
-    const legacyQuery = lastSheetQuery ?? (saved.lastLiveQuery?.sample === false ? saved.lastLiveQuery : null);
-    return { ...initial, legacyQuery, ...saved };
+    return { ...initial, ...JSON.parse(localStorage.getItem(storageKey)) };
   } catch {
     return initial;
   }
@@ -48,15 +46,8 @@ let filter = "all";
 let source = "real";
 let realLookback = "7";
 let runtimeKey = "";
-let configured = false;
 let querying = false;
-let savingPosts = false;
-let sharedRows = [];
-let nextPage = null;
-let readSequence = 0;
-let readingPosts = true;
 let showingSample = false;
-let updatingStatus = "";
 let samplePage = null;
 let noticeTimer;
 let storageAvailable = true;
@@ -64,6 +55,7 @@ let storageAvailable = true;
 function persist() {
   try {
     localStorage.setItem(storageKey, JSON.stringify(state));
+    storageAvailable = true;
   } catch {
     storageAvailable = false;
   }
@@ -93,7 +85,8 @@ function escapeText(value) {
 
 function currentRows() {
   if (source === "real") {
-    return showingSample ? latestLiveRows(state.real, state.lastLiveQuery) : sharedRows;
+    return showingSample ? latestLiveRows(state.real, state.lastLiveQuery)
+      : realPostsInRange(Object.values(state.real), realLookback);
   }
   return (state.result?.keys ?? []).map((key) => ({ ...posts.get(key), fix_status: statusFor(key) }));
 }
@@ -148,7 +141,7 @@ function drawResults() {
   byId("stat-fixed").textContent = hasResults ? fixed : "—";
   byId("stat-duplicates").textContent = result ? result.duplicates : "—";
   byId("query-caption").textContent = isReal
-    ? showingSample ? "ทดสอบเฉพาะหน้าแรก · ยังไม่บันทึกเข้าข้อมูลทีม" : "โพสต์และสถานะที่ใช้ร่วมกันในทีม"
+    ? showingSample ? "ทดสอบเฉพาะหน้าแรก" : "เก็บโพสต์และสถานะในเบราว์เซอร์นี้"
     : result
     ? `ย้อนหลัง ${result.days} วัน · ${result.groupIds.length} กลุ่ม · Query ล่าสุด ${dateFormat.format(result.time)} (เวลาไทย)`
     : "โพสต์จากการ Query ล่าสุด";
@@ -156,12 +149,6 @@ function drawResults() {
   const exportButton = byId("posts-export-button");
   exportButton.hidden = !isReal;
   exportButton.disabled = !isReal || !state.lastLiveQuery || latestLiveRows(state.real, state.lastLiveQuery).length === 0;
-  byId("shared-log").hidden = !isReal;
-  byId("posts-refresh-button").hidden = !isReal;
-  byId("posts-refresh-button").disabled = readingPosts || Boolean(updatingStatus);
-  byId("posts-more-button").hidden = !isReal || showingSample || !nextPage;
-  byId("posts-more-button").disabled = readingPosts || Boolean(updatingStatus);
-  updateImportButton();
   document.querySelectorAll("[data-filter]").forEach((button) => {
     button.setAttribute("aria-pressed", String(button.dataset.filter === filter));
   });
@@ -169,8 +156,8 @@ function drawResults() {
     let title = "ไม่มีโพสต์ในสถานะนี้";
     let message = "เลือกดูสถานะอื่นได้จากตัวกรองด้านบน";
     if (isReal && !rows.length) {
-      title = readingPosts ? "กำลังโหลดข้อมูลทีม" : showingSample ? "ไม่พบโพสต์ทดสอบ" : "ไม่มีโพสต์ในช่วงที่เลือก";
-      message = readingPosts ? "" : "เปลี่ยนช่วงวันที่หรือกด Query 7 วัน เพื่อดึงโพสต์ใหม่";
+      title = showingSample ? "ไม่พบโพสต์ทดสอบ" : "ไม่มีโพสต์ในช่วงที่เลือก";
+      message = "เปลี่ยนช่วงวันที่หรือกด Query 7 วัน เพื่อดึงโพสต์ใหม่";
     } else if (!hasResults) {
       title = "ยังไม่มีผลลัพธ์";
       message = "หลังจากเลือกกลุ่มแล้ว กด Query posts เพื่อดูโพสต์ตัวอย่าง";
@@ -196,7 +183,7 @@ function resultRow(post) {
   return `<tr data-post-key="${key}"><td><strong class="post-message">${escapeText(post.message)}</strong><small>${postId}</small></td>
     <td>${source === "demo" ? groupNames.get(post.group_id) : "Facebook Group"}<small>Group ID ${post.group_id}</small></td>
     <td><time datetime="${new Date(post.created_at).toISOString()}">${date}</time></td>
-    <td><select class="status ${post.fix_status}" data-status="${key}" aria-label="Fix status for ${post.group_id} / ${post.post_id}" ${source === "real" && (showingSample || updatingStatus === key) ? "disabled" : ""}>
+    <td><select class="status ${post.fix_status}" data-status="${key}" aria-label="Fix status for ${post.group_id} / ${post.post_id}" ${source === "real" && showingSample ? "disabled" : ""}>
       <option value="pending" ${post.fix_status === "pending" ? "selected" : ""}>Pending</option>
       <option value="fixed" ${post.fix_status === "fixed" ? "selected" : ""}>Fixed</option>
     </select></td></tr>`;
@@ -248,38 +235,19 @@ byId("setup").addEventListener("change", (event) => {
   }
 });
 
-byId("table-content").addEventListener("change", async (event) => {
+byId("table-content").addEventListener("change", (event) => {
   const select = event.target.closest("[data-status]");
   if (!select) return;
   const key = select.dataset.status;
   const status = select.value;
   if (source === "real") {
-    if (showingSample || updatingStatus) {
-      drawResults();
-      return;
-    }
-    updatingStatus = key;
-    readSequence++;
-    readingPosts = false;
-    drawResults();
-    try {
-      const [, post_id] = key.split(":");
-      const result = await requestPosts("PATCH", { post_id, fix_status: status });
-      for (const post of sharedRows) {
-        if (postKey(post) === key) post.fix_status = result.fix_status;
-      }
-    } catch (error) {
-      announce("ยังไม่ได้เปลี่ยนสถานะ · " + error.message);
-      return;
-    } finally {
-      updatingStatus = "";
-      drawResults();
-    }
+    if (showingSample || !state.real[key]) return;
+    state.real[key].fix_status = status;
   } else {
     state.statuses[key] = status;
-    persist();
-    drawResults();
   }
+  persist();
+  drawResults();
   const nextFocus = document.querySelector(`[data-status="${key}"]`) ?? document.querySelector('[data-filter][aria-pressed="true"]');
   nextFocus?.focus({ preventScroll: true });
   announce(status === "fixed" ? "บันทึกสถานะ Fixed แล้ว" : "บันทึกสถานะ Pending แล้ว");
@@ -322,94 +290,6 @@ byId("posts-export-button").addEventListener("click", () => {
   announce(`ดาวน์โหลดผล Query ล่าสุด ${rows.length} โพสต์แล้ว`);
 });
 
-function queryToSave() {
-  return state.pendingQuery ?? state.legacyQuery;
-}
-
-function updateImportButton() {
-  const button = byId("posts-retry-button");
-  const query = queryToSave();
-  button.hidden = !query || latestLiveRows(state.real, query).length === 0;
-  button.disabled = querying || savingPosts;
-  button.textContent = state.pendingQuery ? "ลองบันทึกผลเดิมอีกครั้ง" : "ย้ายผล Query เดิมเข้าข้อมูลทีม";
-}
-
-function showSharedFeedback(message, warning = false) {
-  const feedback = byId("shared-feedback");
-  feedback.textContent = message;
-  feedback.hidden = !message;
-  feedback.classList.toggle("post-error", warning);
-}
-
-async function requestPosts(method, data, params = "") {
-  const response = await fetch("/api/posts" + params, {
-    method,
-    ...(data ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) } : {}),
-  });
-  const result = await response.json();
-  if (!response.ok) throw new Error(result.message || "เชื่อมต่อข้อมูลทีมไม่สำเร็จ");
-  return result;
-}
-
-async function loadSharedPosts(more = false) {
-  const requestId = ++readSequence;
-  const params = new URLSearchParams({ days: realLookback });
-  if (more && nextPage) params.set("before", nextPage);
-  if (!more) {
-    sharedRows = [];
-    nextPage = null;
-  }
-  readingPosts = true;
-  drawResults();
-  try {
-    const { posts, next } = await requestPosts("GET", null, "?" + params.toString());
-    if (requestId !== readSequence) return false;
-    sharedRows = more ? [...sharedRows, ...posts] : posts;
-    nextPage = next;
-    return true;
-  } catch {
-    if (requestId === readSequence) showSharedFeedback("โหลดข้อมูลทีมไม่สำเร็จ · กดรีเฟรชข้อมูลทีมเพื่อลองใหม่", true);
-    return false;
-  } finally {
-    if (requestId === readSequence) {
-      readingPosts = false;
-      drawResults();
-    }
-  }
-}
-
-async function saveQueryToTracker(query, importLegacy = false) {
-  if (!query || savingPosts || querying) return;
-  const posts = latestLiveRows(state.real, query);
-  if (!posts.length) return;
-  savingPosts = true;
-  updateImportButton();
-  byId("live-sample-button").disabled = true;
-  byId("live-query-button").disabled = true;
-  showSharedFeedback(`กำลังบันทึก ${posts.length} โพสต์เข้าข้อมูลทีม`);
-  try {
-    const { saved } = await requestPosts("POST", { posts, importLegacy });
-    if (importLegacy) state.legacyQuery = null;
-    else state.pendingQuery = null;
-    persist();
-    showingSample = false;
-    if (await loadSharedPosts()) showSharedFeedback(`บันทึกเข้าข้อมูลทีมแล้ว ${saved} โพสต์`);
-  } catch (error) {
-    showSharedFeedback(`ยังบันทึกผล Query ไม่สำเร็จ · ${error.message} · ลองบันทึกผลเดิมได้โดยไม่เสียเครดิตเพิ่ม`, true);
-  } finally {
-    savingPosts = false;
-    updateImportButton();
-    byId("live-sample-button").disabled = false;
-    byId("live-query-button").disabled = !state.mcpVerified;
-  }
-}
-
-byId("posts-retry-button").addEventListener("click", () => saveQueryToTracker(queryToSave(), !state.pendingQuery));
-byId("posts-refresh-button").addEventListener("click", async () => {
-  showingSample = false;
-  if (await loadSharedPosts() && !savingPosts) showSharedFeedback("");
-});
-byId("posts-more-button").addEventListener("click", () => loadSharedPosts(true));
 document.querySelector("nav").addEventListener("click", (event) => {
   const link = event.target.closest('a[href^="#"]');
   if (!link) return;
@@ -426,17 +306,17 @@ function showQueryFeedback(message, warn = false) {
 
 async function runLiveQuery(event) {
   event.preventDefault();
-  if (querying || savingPosts) return;
+  if (querying) return;
   const input = byId("social-key");
-  const preview = event.submitter?.id !== "live-query-button" || !state.mcpVerified;
-  if (!configured && input.value.trim()) {
+  const preview = event.submitter?.id === "live-sample-button";
+  if (input.value.trim()) {
     if (runtimeKey !== input.value.trim()) samplePage = null;
     runtimeKey = input.value.trim();
     input.value = "";
     input.placeholder = "ใช้คีย์ที่ใส่ไว้แล้วในแท็บนี้";
   }
-  if (!configured && !runtimeKey) {
-    showQueryFeedback("วาง API key เพื่อทดสอบ Query", true);
+  if (!runtimeKey) {
+    showQueryFeedback("วาง API key เพื่อเริ่ม Query", true);
     input.focus();
     return;
   }
@@ -444,7 +324,6 @@ async function runLiveQuery(event) {
   const button = byId("live-query-button");
   const sampleButton = byId("live-sample-button");
   querying = true;
-  updateImportButton();
   sampleButton.disabled = true;
   button.disabled = true;
   if (preview) samplePage = null;
@@ -466,7 +345,7 @@ async function runLiveQuery(event) {
       const response = await fetch("/api/facebook/query", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ until, cursor, ...(!configured ? { key: runtimeKey } : {}) }),
+        body: JSON.stringify({ until, cursor, key: runtimeKey }),
       });
       const page = await response.json();
       if (!response.ok) throw new Error(page.message ?? "Query ไม่สำเร็จ");
@@ -494,9 +373,8 @@ async function runLiveQuery(event) {
     stopped = error instanceof SyntaxError ? "เซิร์ฟเวอร์ตอบกลับผิดรูปแบบ กรุณาเปิด Tracker ใหม่และลองอีกครั้ง" : error.message;
   } finally {
     querying = false;
-    updateImportButton();
-    sampleButton.disabled = false;
-    button.disabled = !state.mcpVerified;
+      sampleButton.disabled = false;
+    button.disabled = false;
   }
 
   if (!pages) {
@@ -507,10 +385,7 @@ async function runLiveQuery(event) {
     state.real[key] = saveRealPost(state.real, post).record;
   }
   const partial = Boolean(stopped || rejected || warnings.size);
-  if (fetched.size > 0 && !warnings.size) state.mcpVerified = true;
-  button.disabled = !state.mcpVerified;
   state.lastLiveQuery = { time: until, partial, sample: preview, keys: [...fetched.keys()] };
-  if (!preview && fetched.size) state.pendingQuery = state.lastLiveQuery;
   showingSample = preview;
   if (!preview) samplePage = null;
   persist();
@@ -529,27 +404,9 @@ async function runLiveQuery(event) {
     storageAvailable ? "" : "เบราว์เซอร์ไม่อนุญาตให้บันทึกผลข้ามการรีเฟรช",
   ].filter(Boolean);
   showQueryFeedback(summary.join(" · "), partial);
-  if (!preview && fetched.size) await saveQueryToTracker(state.lastLiveQuery);
 }
 
-byId("live-query-button").disabled = !state.mcpVerified;
 byId("live-query").addEventListener("submit", runLiveQuery);
-
-async function checkKeyConfiguration() {
-  try {
-    const response = await fetch("/api/facebook/status");
-    if (!response.ok) return;
-    configured = Boolean((await response.json()).configured);
-    if (configured) {
-      runtimeKey = "";
-      byId("social-key").value = "";
-      byId("key-field").hidden = true;
-      byId("query-hint").textContent = "แสดงผลย้อนหลัง 7 วัน · บันทึกเข้าข้อมูลทีมอัตโนมัติ";
-    }
-  } catch {
-    return;
-  }
-}
 
 document.querySelector(".source-toggle").addEventListener("click", (event) => {
   const button = event.target.closest("[data-source]");
@@ -567,11 +424,9 @@ document.querySelector(".source-toggle").addEventListener("click", (event) => {
 byId("real-lookback").addEventListener("change", (event) => {
   realLookback = event.target.value;
   showingSample = false;
-  loadSharedPosts();
+  drawResults();
 });
 
 drawSetup();
 drawResults();
 drawIcons();
-checkKeyConfiguration();
-loadSharedPosts();

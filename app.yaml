@@ -1,6 +1,1 @@
 command: ["npm", "start"]
-env:
-  - name: SOCIALAPIS_API_KEY
-    valueFrom: socialapis-key
-  - name: ENDPOINT_NAME
-    value: "projects/<project-id>/branches/<branch-id>/endpoints/<compute-id>"
