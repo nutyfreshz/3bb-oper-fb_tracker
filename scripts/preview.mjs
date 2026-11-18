@@ -12,6 +12,8 @@ const fixtureTime = Date.now();
 const sqlite = new DatabaseSync(":memory:");
 sqlite.exec(await readFile(new URL("../drizzle/0000_shared_posts.sql", import.meta.url), "utf8"));
 sqlite.exec(await readFile(new URL("../drizzle/0001_technician_concern.sql", import.meta.url), "utf8"));
+sqlite.exec(await readFile(new URL("../drizzle/0002_post_topics.sql", import.meta.url), "utf8"));
+sqlite.exec(await readFile(new URL("../drizzle/0003_follow_up.sql", import.meta.url), "utf8"));
 const db = {
   prepare(sql) {
     const stmt = sqlite.prepare(sql);
@@ -39,7 +41,7 @@ const db = {
 function sample(id, time) {
   return {
     details: { post_id: id, post_link: base + id + "/" },
-    values: { publish_time: new Date(time).toISOString(), text: "โพสต์ทดสอบ " + id },
+    values: { publish_time: new Date(time).toISOString(), text: id === "900001" ? "ช่างไม่มาตามวันนัดติดตั้ง" : "รบกวนสอบถามบิลรายเดือน" },
     user_details: { id: "Excluded from Tracker" },
   };
 }

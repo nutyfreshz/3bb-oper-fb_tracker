@@ -108,7 +108,9 @@ export function createPostStorage(pool) {
     },
     async batch(statements) {
       return inTransaction(pool, async (client) => {
-        for (const statement of statements) await statement.run(client);
+        const results = [];
+        for (const statement of statements) results.push(await statement.run(client));
+        return results;
       });
     },
   };

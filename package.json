@@ -12,7 +12,6 @@
     "prepare:migration": "node scripts/prepare-migration.mjs"
   },
   "dependencies": {
-    "@mlc-ai/web-llm": "0.2.89",
     "pg": "^8.16.3"
   }
 }

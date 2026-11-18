@@ -1,0 +1,10 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {"idx": 0, "version": "6", "when": 1794888000000, "tag": "0000_shared_posts", "breakpoints": true},
+    {"idx": 1, "version": "6", "when": 1794888060000, "tag": "0001_technician_concern", "breakpoints": true},
+    {"idx": 2, "version": "6", "when": 1794974400000, "tag": "0002_post_topics", "breakpoints": true},
+    {"idx": 3, "version": "6", "when": 1794978000000, "tag": "0003_follow_up", "breakpoints": true}
+  ]
+}
