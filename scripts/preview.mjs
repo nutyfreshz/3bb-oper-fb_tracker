@@ -11,6 +11,7 @@ const base = "https://www.facebook.com/groups/180446535798602/permalink/";
 const fixtureTime = Date.now();
 const sqlite = new DatabaseSync(":memory:");
 sqlite.exec(await readFile(new URL("../drizzle/0000_shared_posts.sql", import.meta.url), "utf8"));
+sqlite.exec(await readFile(new URL("../drizzle/0001_technician_concern.sql", import.meta.url), "utf8"));
 const db = {
   prepare(sql) {
     const stmt = sqlite.prepare(sql);

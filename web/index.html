@@ -64,6 +64,24 @@
           <p id="shared-feedback" class="query-feedback" role="status" aria-live="polite" hidden></p>
           <button type="button" class="button secondary" id="posts-retry-button" hidden>บันทึกผลเดิมเข้าข้อมูลทีม</button>
         </div>
+        <section id="concern-panel" class="panel concern-panel" aria-labelledby="concern-title" hidden>
+          <div>
+            <h3 id="concern-title">คัดหมวดงานช่าง</h3>
+            <p id="concern-summary"></p>
+            <p class="concern-note">AI อ่านทั้งโพสต์และยกข้อความประกอบ ทีมเลือกหมวดเพื่อยืนยันได้ในตาราง</p>
+            <p id="concern-feedback" role="status" aria-live="polite" hidden></p>
+          </div>
+          <div class="results-actions">
+            <label class="range">หมวด <select id="concern-filter">
+              <option value="all">ทุกหมวด</option><option value="yes">เกี่ยวกับงานช่าง</option>
+              <option value="review">ต้องตรวจ</option><option value="no">เรื่องทั่วไป</option>
+              <option value="unconfirmed">ยังไม่ยืนยัน</option>
+            </select></label>
+            <button type="button" class="button secondary" id="concern-run" aria-describedby="concern-download">วิเคราะห์ด้วย AI</button>
+            <button type="button" class="button secondary" id="concern-stop" hidden>หยุดหลังโพสต์นี้</button>
+            <small id="concern-download" class="concern-download">ต้องใช้เบราว์เซอร์ที่รองรับ WebGPU และดาวน์โหลดโมเดลประมาณ 2–3 GB ครั้งแรก</small>
+          </div>
+        </section>
         <div class="stats" aria-label="Query summary">
           <div class="metric"><span class="metric-icon blue" data-icon="list"></span><div><span>โพสต์ทั้งหมด</span><strong id="stat-total">—</strong></div></div>
           <div class="metric"><span class="metric-icon amber" data-icon="clock"></span><div><span>Pending</span><strong id="stat-pending">—</strong></div></div>

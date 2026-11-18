@@ -132,6 +132,19 @@ td time { white-space: nowrap; color: #405573; }
 .empty .metric-icon { margin-bottom: 2px; }
 .empty p { font-size: 12px; }
 .shared-log:not([hidden]):has(> :not([hidden])) { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; margin-bottom: 12px; }
+.concern-panel { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; padding: 14px 16px; margin-bottom: 12px; }
+.concern-panel[hidden] { display: none; }
+.concern-panel h3 { margin: 0 0 4px; font-size: 15px; }
+.concern-panel p { margin: 3px 0; font-size: 13px; }
+.concern-panel .results-actions { justify-content: flex-start; }
+.concern-note, .concern-download { color: #52637a; }
+.concern-download { flex-basis: 100%; font-size: 12px; }
+.concern-cell { min-width: 172px; }
+.concern-cell select { max-width: 100%; }
+.concern-cell .concern-proposed { color: #21497d; margin: 0 0 5px; font-weight: 700; }
+.concern-cell details { margin-top: 5px; font-size: 12px; color: #52637a; }
+.concern-cell summary { cursor: pointer; }
+.concern-cell blockquote { margin: 6px 0 0; max-width: 240px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .load-more { margin: 10px 14px; }
 .notice { position: fixed; z-index: 5; bottom: 20px; right: 20px; max-width: calc(100vw - 40px); padding: 11px 16px; background: #182e4e; color: #fff; border-radius: 9px; box-shadow: 0 6px 22px #0d1d3d30; font-size: 13px; }
 @media (max-width: 1050px) {

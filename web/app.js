@@ -2,6 +2,7 @@ import {
   groups, latestLiveRows, makeFeed, parsePostLink, postKey,
   runQuery, saveRealPost,
 } from "./data.mjs";
+import { concernLabels } from "./triage.mjs";
 
 const outlines = {
   layers: '<path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"/>',
@@ -57,6 +58,10 @@ let readSequence = 0;
 let readingPosts = true;
 let showingSample = false;
 let updatingStatus = "";
+let updatingConcern = "";
+let concernFilter = "all";
+let runningConcern = false;
+let stopConcern = false;
 let samplePage = null;
 let noticeTimer;
 let storageAvailable = true;
@@ -98,6 +103,12 @@ function currentRows() {
   return (state.result?.keys ?? []).map((key) => ({ ...posts.get(key), fix_status: statusFor(key) }));
 }
 
+function matchesConcern(post) {
+  if (source !== "real" || showingSample || concernFilter === "all") return true;
+  if (concernFilter === "unconfirmed") return post.concern_source !== "manual";
+  return post.technician_concern === concernFilter;
+}
+
 function drawSetup() {
   const current = !state.connected ? 0 : state.selected.length === 0 ? 1 : 2;
   byId("stepper").innerHTML = ["Connect Facebook", "Select groups", "Query posts"].map((label, index) => {
@@ -137,9 +148,19 @@ function groupControls() {
 function drawResults() {
   const rows = currentRows();
   const fixed = rows.filter((post) => post.fix_status === "fixed").length;
-  const visibleRows = rows.filter((post) => filter === "all" || post.fix_status === filter);
+  const visibleRows = rows.filter((post) => (filter === "all" || post.fix_status === filter) && matchesConcern(post));
   const { result } = state;
   const isReal = source === "real";
+  const showConcern = isReal && !showingSample;
+  byId("concern-panel").hidden = !showConcern;
+  if (showConcern) {
+    const confirmed = rows.filter((post) => post.concern_source === "manual" && post.technician_concern === "yes" && post.fix_status === "pending").length;
+    const outstanding = rows.filter((post) => post.concern_source !== "manual" || post.technician_concern === "review").length;
+    byId("concern-summary").textContent = `งานช่างค้างที่ทีมยืนยัน ${confirmed} · รอจัดหมวดหรือตรวจ ${outstanding} · จากโพสต์ที่โหลด ${rows.length}`;
+    byId("concern-run").disabled = runningConcern || readingPosts || !visibleRows.some((post) => !post.technician_concern);
+    byId("concern-stop").hidden = !runningConcern;
+    byId("concern-stop").disabled = stopConcern;
+  }
   const hasResults = isReal || Boolean(result);
   byId("duplicate-metric").hidden = isReal;
   byId("real-range").hidden = !isReal;
@@ -181,7 +202,7 @@ function drawResults() {
     byId("table-content").innerHTML = `<div class="empty"><span class="metric-icon blue" data-icon="list"></span><h3>${title}</h3><p>${message}</p></div>`;
   } else {
     byId("table-content").innerHTML = `<div class="table-scroll" tabindex="0" role="region" aria-label="Query results table"><table aria-label="Query results"><thead><tr>
-      <th scope="col">โพสต์ / Post ID</th><th scope="col">กลุ่ม / Group ID</th><th scope="col">${isReal ? "วันที่โพสต์" : "เวลาโพสต์ (ไทย)"}</th><th scope="col">Fix status</th>
+      <th scope="col">โพสต์ / Post ID</th><th scope="col">กลุ่ม / Group ID</th><th scope="col">${isReal ? "วันที่โพสต์" : "เวลาโพสต์ (ไทย)"}</th>${showConcern ? '<th scope="col">หมวดงานช่าง</th>' : ""}<th scope="col">Fix status</th>
     </tr></thead><tbody>${visibleRows.map(resultRow).join("")}</tbody></table></div>`;
   }
   drawIcons(byId("table-content"));
@@ -196,10 +217,26 @@ function resultRow(post) {
   return `<tr data-post-key="${key}"><td><strong class="post-message">${escapeText(post.message)}</strong><small>${postId}</small></td>
     <td>${source === "demo" ? groupNames.get(post.group_id) : "Facebook Group"}<small>Group ID ${post.group_id}</small></td>
     <td><time datetime="${new Date(post.created_at).toISOString()}">${date}</time></td>
+    ${source === "real" && !showingSample ? concernCell(post, key) : ""}
     <td><select class="status ${post.fix_status}" data-status="${key}" aria-label="Fix status for ${post.group_id} / ${post.post_id}" ${source === "real" && (showingSample || updatingStatus === key) ? "disabled" : ""}>
       <option value="pending" ${post.fix_status === "pending" ? "selected" : ""}>Pending</option>
       <option value="fixed" ${post.fix_status === "fixed" ? "selected" : ""}>Fixed</option>
     </select></td></tr>`;
+}
+
+function concernCell(post, key) {
+  const confirmed = post.concern_source === "manual";
+  const proposed = post.concern_source === "model";
+  const selection = confirmed ? post.technician_concern : "";
+  const options = Object.entries(concernLabels).map(([value, label]) =>
+    `<option value="${value}" ${selection === value ? "selected" : ""}>${label}</option>`);
+  return `<td class="concern-cell">
+    ${proposed ? `<small class="concern-proposed">AI เสนอ · ${concernLabels[post.technician_concern]}</small>` : ""}
+    <select data-concern="${key}" aria-label="ยืนยันหมวดโพสต์ ${post.post_id}" ${updatingConcern ? "disabled" : ""}>
+      <option value="" disabled ${!selection ? "selected" : ""}>เลือกหมวดเพื่อยืนยัน</option>${options.join("")}
+    </select>
+    ${post.concern_evidence ? `<details><summary>ข้อความประกอบ</summary><blockquote>${escapeText(post.concern_evidence)}</blockquote></details>` : ""}
+  </td>`;
 }
 
 function redrawSetupAndFocus(selector) {
@@ -249,6 +286,26 @@ byId("setup").addEventListener("change", (event) => {
 });
 
 byId("table-content").addEventListener("change", async (event) => {
+  const concern = event.target.closest("[data-concern]");
+  if (concern) {
+    const post = sharedRows.find((item) => postKey(item) === concern.dataset.concern);
+    if (!post || updatingConcern || source !== "real" || showingSample) return;
+    const category = concern.value;
+    updatingConcern = concern.dataset.concern;
+    drawResults();
+    try {
+      await saveConcern(post, { technician_concern: category, concern_source: "manual" });
+      announce("บันทึกหมวดที่ทีมยืนยันแล้ว");
+    } catch (error) {
+      announce("บันทึกหมวดไม่สำเร็จ · " + error.message);
+    } finally {
+      const key = updatingConcern;
+      updatingConcern = "";
+      drawResults();
+      document.querySelector(`[data-concern="${key}"]`)?.focus({ preventScroll: true });
+    }
+    return;
+  }
   const select = event.target.closest("[data-status]");
   if (!select) return;
   const key = select.dataset.status;
@@ -283,6 +340,71 @@ byId("table-content").addEventListener("change", async (event) => {
   const nextFocus = document.querySelector(`[data-status="${key}"]`) ?? document.querySelector('[data-filter][aria-pressed="true"]');
   nextFocus?.focus({ preventScroll: true });
   announce(status === "fixed" ? "บันทึกสถานะ Fixed แล้ว" : "บันทึกสถานะ Pending แล้ว");
+});
+
+async function saveConcern(post, decision) {
+  const result = await requestPosts("PATCH", { post_id: post.post_id, ...decision });
+  for (const row of sharedRows) {
+    if (postKey(row) === postKey(post) && (decision.concern_source === "manual" ||
+        (row.message === post.message && row.concern_source !== "manual"))) Object.assign(row, result);
+  }
+}
+
+function concernFeedback(message) {
+  const node = byId("concern-feedback");
+  node.textContent = message;
+  node.hidden = !message;
+}
+
+byId("concern-filter").addEventListener("change", (event) => {
+  concernFilter = event.target.value;
+  drawResults();
+});
+
+byId("concern-stop").addEventListener("click", () => {
+  stopConcern = true;
+  byId("concern-stop").disabled = true;
+  concernFeedback("กำลังหยุดหลังจบโพสต์ปัจจุบัน");
+});
+
+byId("concern-run").addEventListener("click", async () => {
+  if (runningConcern || source !== "real" || showingSample) return;
+  const queue = sharedRows.filter((post) => !post.technician_concern &&
+    matchesConcern(post) && (filter === "all" || post.fix_status === filter));
+  if (!queue.length) return;
+  runningConcern = true;
+  stopConcern = false;
+  drawResults();
+  let saved = 0;
+  let failed = 0;
+  try {
+    if (!navigator.gpu) throw new Error("webgpu-unavailable");
+    concernFeedback("กำลังเตรียม Qwen3-4B");
+    const classifier = await import("./triage-engine.mjs");
+    await classifier.loadClassifier((percent) => concernFeedback(`กำลังโหลดโมเดล ${percent}%`));
+    for (const [index, post] of queue.entries()) {
+      if (stopConcern) break;
+      concernFeedback(`กำลังวิเคราะห์โพสต์ ${index + 1} จาก ${queue.length}`);
+      try {
+        const decision = await classifier.classifyPost(post.message);
+        await saveConcern(post, { ...decision, concern_source: "model", analyzed_message: post.message });
+        saved++;
+      } catch {
+        failed++;
+      }
+    }
+    concernFeedback([`บันทึกคำแนะนำ AI แล้ว ${saved} โพสต์`, failed ? `วิเคราะห์หรือบันทึกไม่สำเร็จ ${failed} · ลองใหม่ได้` : "", stopConcern ? "หยุดแล้ว" : ""].filter(Boolean).join(" · "));
+  } catch (error) {
+    if (["webgpu-unavailable", "no-webgpu-adapter"].includes(error.message)) {
+      concernFeedback("อุปกรณ์นี้เปิด WebGPU ไม่ได้ · ลอง Chrome หรือ Edge บนเครื่องที่เปิดการเร่งกราฟิก หรือเลือกหมวดในตารางได้เลย");
+    } else {
+      console.warn("Tracker classifier could not load", error?.message ?? String(error));
+      concernFeedback("โหลดโมเดลไม่สำเร็จ · ตรวจการเชื่อมต่อแล้วลองใหม่ หรือเลือกหมวดในตารางได้เลย");
+    }
+  } finally {
+    runningConcern = false;
+    drawResults();
+  }
 });
 
 document.querySelector(".table-heading .filters").addEventListener("click", (event) => {

@@ -12,12 +12,16 @@ async function readSharedPosts(request, db) {
   if (cursor && (cursor.length !== 2 || !/^\d{1,15}$/.test(cursor[0]) || !validPostId(cursor[1]))) {
     return failure("หน้าผลลัพธ์ไม่ถูกต้อง", 400);
   }
-  const whereCursor = cursor ? "AND (created_at < ? OR (created_at = ? AND post_id < ?))" : "";
+  const whereCursor = cursor ? "AND (p.created_at < ? OR (p.created_at = ? AND p.post_id < ?))" : "";
   const bindings = cursor ? [minTime, Number(cursor[0]), Number(cursor[0]), cursor[1]] : [minTime];
   const { results } = await db.prepare(`
-    SELECT group_id, post_id, created_at, message, fix_status FROM facebook_posts
-    WHERE created_at >= ? ${whereCursor}
-    ORDER BY created_at DESC, post_id DESC LIMIT ?
+    SELECT p.group_id, p.post_id, p.created_at, p.message, p.fix_status,
+           c.technician_concern, c.source AS concern_source, c.evidence AS concern_evidence
+    FROM facebook_posts AS p LEFT JOIN facebook_post_concerns AS c
+      ON c.group_id = p.group_id AND c.post_id = p.post_id
+      AND (c.source = 'manual' OR c.analyzed_message = p.message)
+    WHERE p.created_at >= ? ${whereCursor}
+    ORDER BY p.created_at DESC, p.post_id DESC LIMIT ?
   `).bind(...bindings, maxPostsPerPage + 1).all();
   const page = results.slice(0, maxPostsPerPage);
   const last = page.at(-1);
@@ -64,6 +68,32 @@ async function changeSharedStatus(data, db) {
   return json({ fix_status });
 }
 
+async function changeSharedConcern(data, db) {
+  const { post_id, technician_concern, concern_source, concern_evidence = "", analyzed_message } = data;
+  const model = concern_source === "model";
+  if (!validPostId(post_id) || !["yes", "review", "no"].includes(technician_concern) ||
+      (!model && concern_source !== "manual") || typeof concern_evidence !== "string" ||
+      (model && (typeof analyzed_message !== "string" || analyzed_message.length > 6000 ||
+        (concern_evidence && !analyzed_message.includes(concern_evidence)) ||
+        (technician_concern === "yes" && !concern_evidence))) ||
+      (!model && concern_evidence !== "")) {
+    return failure("ข้อมูลการจัดหมวดไม่ถูกต้อง", 400);
+  }
+  const { meta } = await db.prepare(`
+    INSERT INTO facebook_post_concerns
+      (group_id, post_id, technician_concern, source, evidence, analyzed_message)
+    SELECT group_id, post_id, ?, ?, ?, ? FROM facebook_posts
+    WHERE group_id = ? AND post_id = ? AND (? = 'manual' OR message = ?)
+    ON CONFLICT (group_id, post_id) DO UPDATE SET
+      technician_concern = excluded.technician_concern, source = excluded.source,
+      evidence = excluded.evidence, analyzed_message = excluded.analyzed_message
+    WHERE excluded.source = 'manual' OR facebook_post_concerns.source <> 'manual'
+  `).bind(technician_concern, concern_source, concern_evidence, model ? analyzed_message : null,
+    groupId, post_id, concern_source, model ? analyzed_message : null).run();
+  if (!meta.changes) return failure("โพสต์หรือหมวดเปลี่ยนไปแล้ว · กรุณารีเฟรชข้อมูลทีม", 409);
+  return json({ technician_concern, concern_source, concern_evidence });
+}
+
 async function sharedPostsApi(request, env) {
   if (!request.headers.get("oai-authenticated-user-id")) return failure("กรุณาเข้าสู่ระบบ Tracker", 401);
   if (!env.DB) return failure("ยังเชื่อมต่อฐานข้อมูลของ Tracker ไม่ได้", 503);
@@ -80,7 +110,10 @@ async function sharedPostsApi(request, env) {
     } catch {
       return failure("รูปแบบคำขอไม่ถูกต้อง", 400);
     }
-    return request.method === "POST" ? await saveSharedPosts(data, env.DB) : await changeSharedStatus(data, env.DB);
+    if (request.method === "POST") return await saveSharedPosts(data, env.DB);
+    return data && Object.hasOwn(data, "technician_concern")
+      ? await changeSharedConcern(data, env.DB)
+      : await changeSharedStatus(data, env.DB);
   } catch (error) {
     console.error("tracker_database_request_failed", { method: request.method, message: error?.name });
     return failure("ฐานข้อมูลของ Tracker ตอบกลับไม่สำเร็จ", 503);
